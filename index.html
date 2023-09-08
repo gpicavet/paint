@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="">
+
+<head>
+  <meta charset="utf-8">
+  <title></title>
+  <meta name="description" content="">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <style>
+    * { margin:0; padding:0; } /* to remove the top and left whitespace */
+
+    html, body { width:100%; height:100%; } /* just to be sure these are full screen*/
+
+    canvas {
+      display:block; /* To remove the scrollbars */
+      touch-action: none;/* To increase touch rate */
+      background: lightcyan;
+    }
+
+    #color {
+      position: fixed;
+      right:calc(50px + 20px);
+      bottom:20px;
+      width:calc(2 * 50px);
+      height:calc(2 * 50px);
+      border-radius: 50%;
+      background: black;
+      border: 3px solid black;
+    }
+
+    #line {
+      position: fixed;
+      right:calc(50px + 20px);
+      bottom:calc(2 * (50px + 20px));
+      width:calc(2 * 50px);
+      height:calc(2 * 50px);
+      border-radius: 50%;
+      border: 3px solid black;
+      font-size: 30px;
+    }
+
+    .move {
+      right:0px;
+      background: red;
+    }
+
+  </style>
+</head>
+
+<body>
+
+  <canvas id="mainCanvas" tabindex='1'></canvas>
+  <button id="color"></button>
+  <button id="line">
+  </button>
+  <div id="expandzone"></div>
+
+  <script>
+    let rect;
+    let isDrawing = false;
+    let expand = false;
+    let x,y,vx,vy;
+    let color = 0;
+    const colors = ["black", "beige","blue","darkblue", "aqua","red", "peru", "green", "lightgreen", "pink", "violet", "yellow", "gray", "orange", "white"];
+    let line = 1;
+    const lines = [10,30,60];
+
+
+    function drawTool() {
+      document.getElementById("line").innerHTML=
+        "<svg height=\""+100+"\" width=\""+100+"\">" +
+              "<circle cx=\""+(50-3)+"\" cy=\""+(50-3)+"\" r=\""+(lines[line]*2/3)+"\" stroke-width=\"0\" fill=\"black\" />" +
+        "</svg>";
+    }
+
+
+    function expandColorTool(e) {
+      const r=50;
+      const n=4;
+
+      document.getElementById("expandzone").innerHTML="";
+      expand=true;
+      colors.forEach((c,i)=> {
+        const row=Math.floor(i/n);
+        const col=i%n;
+        const b = document.createElement("button");
+        b.id="color-"+i;
+        b.style.width=(2*r)+"px";
+        b.style.height=(2*r)+"px";
+        b.style.position="fixed";
+        b.style.borderRadius="50%";
+        b.style.boxShadow="3px solid black";
+        b.style.background = colors[i];
+        b.style.right=document.getElementById("color").style.right;
+        b.style.bottom=document.getElementById("color").style.bottom;
+        b.style.transition = "all 0.5s cubic-bezier(0.43, 0.41, 0.22, 0.91);"
+        b.onclick=() => {
+          expand=false;
+          color=i;
+          e.target.style.background=colors[color];
+          document.getElementById("expandzone").innerHTML="";
+        }
+        document.getElementById("expandzone").appendChild(b);
+        b.style.right=((2*r+20)*(n+1-col))+"px";
+        b.style.bottom=(20+(2*r+20)*(n-row))+"px";
+        b.classList.toggle('move')
+      });
+    }
+
+    function expandLineTool(e) {
+      line++;
+      if(line >=lines.length)
+        line=0;
+      drawTool();
+    }
+
+    function resizeCanvas(c) {
+      c.width = window.innerWidth;
+      c.height = window.innerHeight;
+      rect = c.getBoundingClientRect();
+    }
+
+    const canvas = document.getElementById("mainCanvas");
+
+    window.addEventListener('resize', e => resizeCanvas(canvas), false);
+    window.addEventListener('contextmenu', event => event.preventDefault());
+    document.getElementById("color").addEventListener("click", expandColorTool);
+    document.getElementById("line").addEventListener("click", expandLineTool);
+
+
+    resizeCanvas(canvas);
+    drawTool();
+
+    const context = canvas.getContext('2d');
+
+
+
+    canvas.addEventListener('mousedown', e => {
+      handleStart([e]);
+    })
+    canvas.addEventListener('mousemove', e => {
+      handleMove([e]);
+    });
+    window.addEventListener('mouseup', e => {
+      handleEnd([e]);
+    });
+    canvas.addEventListener('touchstart', e => {
+      handleStart(e.changedTouches);
+    })
+    canvas.addEventListener('touchmove', e => {
+      handleMove(e.changedTouches);
+    });
+    window.addEventListener('touchend', e => {
+      handleEnd(e.changedTouches);
+    });
+
+    function handleStart(e) {
+      if (isDrawing === false) {
+        //console.log("handleStart")
+        x = e[0].clientX - rect.left;
+        y = e[0].clientY - rect.top;
+        vx=0;
+        vy=0;
+        isDrawing = true;
+      }
+    }
+
+    function handleMove(e) {
+      if (isDrawing === true) {
+        //console.log("handleMove")
+        let nx,ny,d=1E9;
+        for(let _e of e) {
+          let _nx = _e.clientX - rect.left;
+          let _ny = _e.clientY - rect.top;
+          let _d = (x-_nx)*(x-_nx)+(y-_ny)*(y-_ny)
+          if(_d<d) {
+            d = _d;
+            nx = _nx;
+            ny = _ny;
+          }
+        }
+        if((vx==0&&vy==0) || d<=(vx*vx+vy*vy)*1000) {
+          console.log(d, vx*vx+vy*vy);
+          drawLine(context, x, y, nx, ny);
+          vx = nx-x;
+          vy = ny-y;
+          x = nx;
+          y = ny;
+        }
+      }
+    }
+
+    function handleEnd(e) {
+      if (isDrawing === true) {
+        let nx = e[0].clientX - rect.left;
+        let ny = e[0].clientY - rect.top;
+        let d = (x-nx)*(x-nx)+(y-ny)*(y-ny)
+        if(d<1000) {
+          //console.log("handleEnd", d)
+          drawLine(context, x, y, nx , ny);
+          x = 0;
+          y = 0;
+        }
+        isDrawing = false;
+      }
+
+    }
+
+
+    function drawLine(context, x1, y1, x2, y2) {
+      context.beginPath();
+      context.strokeStyle = colors[color];
+      context.lineCap = 'round';
+      context.lineWidth = lines[line];
+      context.moveTo(x1, y1);
+      context.lineTo(x2, y2);
+      context.stroke();
+      context.closePath();
+    }
+
+
+  </script>
+</body>
+
+</html>
